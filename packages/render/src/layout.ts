@@ -19,12 +19,14 @@ type FrameRatios = {
   left: number;
 };
 
+export const BROWSER_BAR_RATIO = 0.045;
+
 function frameRatios(frame: Frame): FrameRatios {
   switch (frame.type) {
     case "none":
       return { top: 0, right: 0, bottom: 0, left: 0 };
     case "browser":
-      return { top: 0.045, right: 0, bottom: 0, left: 0 };
+      return { top: BROWSER_BAR_RATIO, right: 0, bottom: 0, left: 0 };
     case "mac":
       return { top: 0.03, right: 0.008, bottom: 0.008, left: 0.008 };
     case "iphone":
