@@ -1,11 +1,24 @@
 import type { Frame } from "@mockdeck/scene";
-import { drawBrowserChrome, type ChromeContext } from "./chrome";
+import { browserBarColor, drawBrowserChrome, type ChromeContext } from "./chrome";
 import type { CardLayout } from "./layout";
 
 export type CardContext = ChromeContext & {
   clip(): void;
   drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
 };
+
+const CARD_SURFACE = "#ffffff";
+
+export function cardSurface(frame: Frame): string {
+  switch (frame.type) {
+    case "none":
+      return CARD_SURFACE;
+    case "browser":
+      return browserBarColor(frame.theme);
+    default:
+      throw new Error(`Unsupported frame: ${frame.type}`);
+  }
+}
 
 export function drawCard(
   ctx: CardContext,
@@ -14,9 +27,7 @@ export function drawCard(
   frame: Frame,
   image?: unknown,
 ): void {
-  if (frame.type !== "browser" && frame.type !== "none") {
-    throw new Error(`Unsupported frame: ${frame.type}`);
-  }
+  const surface = cardSurface(frame);
 
   ctx.save();
 
@@ -31,6 +42,9 @@ export function drawCard(
     );
     ctx.clip();
   }
+
+  ctx.fillStyle = surface;
+  ctx.fillRect(layout.card.x, layout.card.y, layout.card.width, layout.card.height);
 
   if (frame.type === "browser") {
     drawBrowserChrome(ctx, layout.card, frame.theme, frame.url);

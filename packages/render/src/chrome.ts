@@ -1,7 +1,7 @@
 import type { Frame } from "@mockdeck/scene";
 import { BROWSER_BAR_RATIO, type Rect } from "./layout";
 
-type BrowserTheme = Extract<Frame, { type: "browser" }>["theme"];
+export type BrowserTheme = Extract<Frame, { type: "browser" }>["theme"];
 
 const DOT_RADIUS = 0.16;
 const DOT_INSET = 0.55;
@@ -34,6 +34,10 @@ const PALETTES: Record<BrowserTheme, ChromePalette> = {
     text: "#5f6368",
   },
 };
+
+export function browserBarColor(theme: BrowserTheme): string {
+  return PALETTES[theme].bar;
+}
 
 export type ChromeContext = {
   save(): void;
@@ -88,7 +92,7 @@ export function drawBrowserChrome(
 
   ctx.save();
 
-  ctx.fillStyle = palette.bar;
+  ctx.fillStyle = browserBarColor(theme);
   ctx.fillRect(rect.x, rect.y, rect.width, barHeight);
 
   for (let index = 0; index < palette.dots.length; index += 1) {
