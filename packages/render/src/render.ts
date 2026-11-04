@@ -12,7 +12,7 @@ export type SceneContext = BackgroundContext &
   CardContext &
   ShadowContext & {
     scale(x: number, y: number): void;
-    globalCompositeOperation: string;
+    setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
   };
 
 export type RenderTarget = {
@@ -42,10 +42,14 @@ export function renderScene(
     layout !== null && (assets.screenshot != null || scene.frame.type === "browser")
       ? layout
       : null;
-  let shadowDrawn = false;
+
+  ctx.scale(scale, scale);
+  drawBackground(ctx, { x: 0, y: 0, ...artboard }, scene.background);
 
   if (cardLayout) {
-    shadowDrawn = drawCardShadow(
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawCardShadow(
       ctx,
       cardLayout.card,
       scene.transform.radius,
@@ -53,20 +57,8 @@ export function renderScene(
       cardSurface(scene.frame),
       scale,
     );
-  }
+    ctx.restore();
 
-  if (shadowDrawn) {
-    ctx.globalCompositeOperation = "destination-over";
-  }
-
-  ctx.scale(scale, scale);
-  drawBackground(ctx, { x: 0, y: 0, ...artboard }, scene.background);
-
-  if (shadowDrawn) {
-    ctx.globalCompositeOperation = "source-over";
-  }
-
-  if (cardLayout) {
     drawCard(ctx, cardLayout, scene.transform.radius, scene.frame, assets.screenshot);
   }
 }

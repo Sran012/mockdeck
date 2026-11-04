@@ -6,10 +6,8 @@ const image = { width: 1440, height: 900 };
 
 function fakeContext() {
   let style: unknown;
-  let composite: string = "source-over";
-  const compositeChanges: string[] = [];
 
-  const ctx = {
+  return {
     save: vi.fn(),
     restore: vi.fn(),
     get fillStyle() {
@@ -29,13 +27,7 @@ function fakeContext() {
     clip: vi.fn(),
     drawImage: vi.fn(),
     scale: vi.fn(),
-    get globalCompositeOperation() {
-      return composite;
-    },
-    set globalCompositeOperation(value: string) {
-      composite = value;
-      compositeChanges.push(value);
-    },
+    setTransform: vi.fn(),
     shadowColor: "",
     shadowBlur: 0,
     shadowOffsetX: 0,
@@ -46,8 +38,6 @@ function fakeContext() {
     measureText: vi.fn((text: string) => ({ width: text.length * 7 })),
     fillText: vi.fn(),
   } satisfies SceneContext;
-
-  return Object.assign(ctx, { compositeChanges });
 }
 
 function fakeTarget(ctx: SceneContext | null) {
@@ -64,7 +54,7 @@ describe("renderScene", () => {
     expectTypeOf<OffscreenCanvas>().toExtend<RenderTarget>();
   });
 
-  it("draws the shadow in device pixels before scaling the scene", () => {
+  it("draws the shadow in device pixels between the background and the card", () => {
     const scene = defaultScene();
     scene.background = { kind: "solid", color: "#0f1115" };
     scene.screenshot = { blobId: "shot", width: 1440, height: 900 };
@@ -80,6 +70,7 @@ describe("renderScene", () => {
     expect(ctx.shadowBlur).toBe(120);
     expect(ctx.shadowOffsetY).toBe(48);
     expect(ctx.scale).toHaveBeenCalledWith(2, 2);
+    expect(ctx.setTransform).toHaveBeenCalledWith(1, 0, 0, 1, 0, 0);
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, 1600, 900);
     expect(ctx.clip).toHaveBeenCalledOnce();
     expect(ctx.drawImage).toHaveBeenCalledOnce();
@@ -90,17 +81,18 @@ describe("renderScene", () => {
     expect(width).toBeCloseTo(1016.12, 1);
     expect(height).toBeCloseTo(635.07, 1);
 
-    const shadowFill = ctx.fill.mock.invocationCallOrder[0]!;
     const scale = ctx.scale.mock.invocationCallOrder[0]!;
     const background = ctx.fillRect.mock.invocationCallOrder[0]!;
+    const transform = ctx.setTransform.mock.invocationCallOrder[0]!;
+    const shadowFill = ctx.fill.mock.invocationCallOrder[0]!;
     const clip = ctx.clip.mock.invocationCallOrder[0]!;
     const screenshot = ctx.drawImage.mock.invocationCallOrder[0]!;
 
-    expect(shadowFill).toBeLessThan(scale);
     expect(scale).toBeLessThan(background);
-    expect(background).toBeLessThan(clip);
+    expect(background).toBeLessThan(transform);
+    expect(transform).toBeLessThan(shadowFill);
+    expect(shadowFill).toBeLessThan(clip);
     expect(clip).toBeLessThan(screenshot);
-    expect(ctx.compositeChanges).toEqual(["destination-over", "source-over"]);
   });
 
   it("draws only the background without a screenshot", () => {
@@ -118,7 +110,7 @@ describe("renderScene", () => {
     expect(ctx.fill).not.toHaveBeenCalled();
     expect(ctx.clip).not.toHaveBeenCalled();
     expect(ctx.drawImage).not.toHaveBeenCalled();
-    expect(ctx.compositeChanges).toEqual([]);
+    expect(ctx.setTransform).not.toHaveBeenCalled();
   });
 
   it("skips the shadow when its opacity is zero", () => {
@@ -134,7 +126,6 @@ describe("renderScene", () => {
 
     expect(ctx.shadowColor).toBe("");
     expect(ctx.shadowBlur).toBe(0);
-    expect(ctx.compositeChanges).toEqual([]);
     expect(ctx.drawImage).toHaveBeenCalledOnce();
   });
 
