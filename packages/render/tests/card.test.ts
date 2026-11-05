@@ -41,12 +41,16 @@ describe("cardSurface", () => {
     expect(cardSurface({ type: "browser", theme: "light", url: "" })).toBe("#e9eaec");
   });
 
+  it("uses the mac bar colour for mac frames", () => {
+    expect(cardSurface({ type: "mac", theme: "dark" })).toBe("#202024");
+    expect(cardSurface({ type: "mac", theme: "light" })).toBe("#ececf0");
+  });
+
   it("uses a neutral surface for frameless cards", () => {
     expect(cardSurface({ type: "none" })).toBe("#ffffff");
   });
 
   it("rejects frames it cannot draw", () => {
-    expect(() => cardSurface({ type: "mac", theme: "dark" })).toThrow("Unsupported frame: mac");
     expect(() => cardSurface({ type: "iphone", color: "black" })).toThrow(
       "Unsupported frame: iphone",
     );
@@ -97,6 +101,30 @@ describe("drawCard", () => {
     expect(ctx.drawImage).toHaveBeenCalledWith(image, 10, 65, 1000, 555);
   });
 
+  it("draws the mac window chrome and screenshot", () => {
+    const ctx = fakeContext();
+
+    drawCard(ctx, layout, 16, { type: "mac", theme: "dark" }, image);
+
+    const barHeight = 1000 * 0.03;
+    const lineHeight = Math.max(1, barHeight * 0.04);
+
+    expect(ctx.clip).toHaveBeenCalledOnce();
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(1, 10, 20, 1000, 600);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(2, 10, 20, 1000, barHeight);
+    expect(ctx.fillRect).toHaveBeenNthCalledWith(
+      3,
+      10,
+      20 + barHeight - lineHeight,
+      1000,
+      lineHeight,
+    );
+    expect(ctx.arc).toHaveBeenCalledTimes(3);
+    expect(ctx.fillStyle).toBe("#2e2e33");
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, 10, 65, 1000, 555);
+    expect(ctx.restore).toHaveBeenCalledTimes(2);
+  });
+
   it("skips the clip when the radius is zero", () => {
     const ctx = fakeContext();
 
@@ -121,9 +149,9 @@ describe("drawCard", () => {
   it("rejects frames it cannot draw before touching the context", () => {
     const ctx = fakeContext();
 
-    expect(() => drawCard(ctx, layout, 16, { type: "mac", theme: "dark" }, image)).toThrow(
-      "Unsupported frame: mac",
-    );
+    expect(() =>
+      drawCard(ctx, layout, 16, { type: "iphone", color: "black" }, image),
+    ).toThrow("Unsupported frame: iphone");
     expect(ctx.save).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,8 @@ type FrameRatios = {
 };
 
 export const BROWSER_BAR_RATIO = 0.045;
+export const MAC_BAR_RATIO = 0.03;
+export const MAC_BEZEL_RATIO = 0.008;
 
 function frameRatios(frame: Frame): FrameRatios {
   switch (frame.type) {
@@ -28,7 +30,12 @@ function frameRatios(frame: Frame): FrameRatios {
     case "browser":
       return { top: BROWSER_BAR_RATIO, right: 0, bottom: 0, left: 0 };
     case "mac":
-      return { top: 0.03, right: 0.008, bottom: 0.008, left: 0.008 };
+      return {
+        top: MAC_BAR_RATIO,
+        right: MAC_BEZEL_RATIO,
+        bottom: MAC_BEZEL_RATIO,
+        left: MAC_BEZEL_RATIO,
+      };
     case "iphone":
       return { top: 0.06, right: 0.06, bottom: 0.06, left: 0.06 };
   }

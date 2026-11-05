@@ -13,7 +13,6 @@ const TEXT_INSET = 0.14;
 
 type ChromePalette = {
   bar: string;
-  dots: readonly [string, string, string];
   pill: string;
   text: string;
 };
@@ -23,13 +22,11 @@ const TRAFFIC_LIGHTS = ["#ff5f57", "#febc2e", "#28c840"] as const;
 const PALETTES: Record<BrowserTheme, ChromePalette> = {
   dark: {
     bar: "#1c1c1e",
-    dots: TRAFFIC_LIGHTS,
     pill: "#3a3a3c",
     text: "#98989f",
   },
   light: {
     bar: "#e9eaec",
-    dots: TRAFFIC_LIGHTS,
     pill: "#ffffff",
     text: "#5f6368",
   },
@@ -54,6 +51,19 @@ export type ChromeContext = {
   measureText(text: string): { width: number };
   fillText(text: string, x: number, y: number, maxWidth?: number): void;
 };
+
+export function drawTrafficLights(ctx: ChromeContext, rect: Rect, barHeight: number): void {
+  const radius = barHeight * DOT_RADIUS;
+  const centerY = rect.y + barHeight / 2;
+
+  for (let index = 0; index < TRAFFIC_LIGHTS.length; index += 1) {
+    const centerX = rect.x + barHeight * (DOT_INSET + index * DOT_GAP);
+    ctx.fillStyle = TRAFFIC_LIGHTS[index];
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
 
 function fitText(ctx: ChromeContext, text: string, maxWidth: number): string {
   if (ctx.measureText(text).width <= maxWidth) {
@@ -87,21 +97,13 @@ export function drawBrowserChrome(
 
   const palette = PALETTES[theme];
   const barHeight = Math.min(rect.width * BROWSER_BAR_RATIO, rect.height);
-  const radius = barHeight * DOT_RADIUS;
-  const centerY = rect.y + barHeight / 2;
 
   ctx.save();
 
   ctx.fillStyle = browserBarColor(theme);
   ctx.fillRect(rect.x, rect.y, rect.width, barHeight);
 
-  for (let index = 0; index < palette.dots.length; index += 1) {
-    const centerX = rect.x + barHeight * (DOT_INSET + index * DOT_GAP);
-    ctx.fillStyle = palette.dots[index];
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  drawTrafficLights(ctx, rect, barHeight);
 
   const pillWidth = rect.width * PILL_WIDTH;
   const pillHeight = barHeight * PILL_HEIGHT;

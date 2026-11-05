@@ -1,6 +1,7 @@
 import type { Frame } from "@mockdeck/scene";
 import { browserBarColor, drawBrowserChrome, type ChromeContext } from "./chrome";
 import type { CardLayout } from "./layout";
+import { drawMacChrome, macBarColor } from "./mac";
 
 export type CardContext = ChromeContext & {
   clip(): void;
@@ -15,6 +16,8 @@ export function cardSurface(frame: Frame): string {
       return CARD_SURFACE;
     case "browser":
       return browserBarColor(frame.theme);
+    case "mac":
+      return macBarColor(frame.theme);
     default:
       throw new Error(`Unsupported frame: ${frame.type}`);
   }
@@ -48,6 +51,8 @@ export function drawCard(
 
   if (frame.type === "browser") {
     drawBrowserChrome(ctx, layout.card, frame.theme, frame.url);
+  } else if (frame.type === "mac") {
+    drawMacChrome(ctx, layout.card, frame.theme);
   }
 
   if (image != null) {
