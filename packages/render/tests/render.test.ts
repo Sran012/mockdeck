@@ -129,6 +129,22 @@ describe("renderScene", () => {
     expect(ctx.drawImage).toHaveBeenCalledOnce();
   });
 
+  it("uses the phone radius for the iphone shadow", () => {
+    const scene = defaultScene();
+    scene.frame = { type: "iphone", color: "black" };
+    scene.background = { kind: "solid", color: "#0f1115" };
+    scene.screenshot = { blobId: "shot", width: 1440, height: 900 };
+
+    const ctx = fakeContext();
+    const target = fakeTarget(ctx);
+
+    renderScene(scene, { screenshot: image }, 1, target);
+
+    const shadow = ctx.roundRect.mock.calls[0]!;
+    expect(shadow[4]).toBeCloseTo(40.06, 2);
+    expect(ctx.drawImage).toHaveBeenCalledOnce();
+  });
+
   it("fails when the target has no 2D context", () => {
     const target = fakeTarget(null);
 

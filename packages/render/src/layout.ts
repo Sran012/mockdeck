@@ -23,6 +23,10 @@ export const BROWSER_BAR_RATIO = 0.045;
 export const MAC_BAR_RATIO = 0.03;
 export const MAC_BEZEL_RATIO = 0.008;
 
+const PHONE_BEZEL_X = 0.04;
+const PHONE_BEZEL_Y = 0.023;
+export const PHONE_SCREEN_RATIO = 19.5 / 9;
+
 function frameRatios(frame: Frame): FrameRatios {
   switch (frame.type) {
     case "none":
@@ -37,7 +41,12 @@ function frameRatios(frame: Frame): FrameRatios {
         left: MAC_BEZEL_RATIO,
       };
     case "iphone":
-      return { top: 0.06, right: 0.06, bottom: 0.06, left: 0.06 };
+      return {
+        top: PHONE_BEZEL_Y,
+        right: PHONE_BEZEL_X,
+        bottom: PHONE_BEZEL_Y,
+        left: PHONE_BEZEL_X,
+      };
   }
 }
 
@@ -54,7 +63,8 @@ export function layoutCard(scene: Scene): CardLayout | null {
 
   const ratios = frameRatios(scene.frame);
   const shotRatio = screenshot.width / screenshot.height;
-  const cardRatio = ratios.top + ratios.bottom + (1 - ratios.left - ratios.right) / shotRatio;
+  const screenRatio = scene.frame.type === "iphone" ? PHONE_SCREEN_RATIO : 1 / shotRatio;
+  const cardRatio = ratios.top + ratios.bottom + (1 - ratios.left - ratios.right) * screenRatio;
 
   let cardW = contentW;
   let cardH = contentW * cardRatio;
@@ -73,7 +83,7 @@ export function layoutCard(scene: Scene): CardLayout | null {
   };
 
   const screenW = cardW * (1 - ratios.left - ratios.right);
-  const screenH = screenW / shotRatio;
+  const screenH = screenW * screenRatio;
   const screen: Rect = {
     x: card.x + cardW * ratios.left,
     y: card.y + cardW * ratios.top,
