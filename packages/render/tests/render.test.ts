@@ -21,6 +21,7 @@ function fakeContext() {
     createRadialGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     createConicGradient: vi.fn(() => ({ addColorStop: vi.fn() })),
     beginPath: vi.fn(),
+    rect: vi.fn(),
     roundRect: vi.fn(),
     arc: vi.fn(),
     fill: vi.fn(),
@@ -110,6 +111,27 @@ describe("renderScene", () => {
     expect(ctx.fill).not.toHaveBeenCalled();
     expect(ctx.clip).not.toHaveBeenCalled();
     expect(ctx.drawImage).not.toHaveBeenCalled();
+    expect(ctx.setTransform).not.toHaveBeenCalled();
+  });
+
+  it("draws a user image background before the card", () => {
+    const scene = defaultScene();
+    scene.background = {
+      kind: "image",
+      source: { type: "user", blobId: "bg" },
+      fit: "cover",
+      blur: 0,
+    };
+
+    const ctx = fakeContext();
+    const target = fakeTarget(ctx);
+    const background = { width: 400, height: 100 };
+
+    renderScene(scene, { background }, 1, target);
+
+    expect(ctx.rect).toHaveBeenCalledWith(0, 0, 1600, 900);
+    expect(ctx.clip).toHaveBeenCalledOnce();
+    expect(ctx.drawImage).toHaveBeenCalledWith(background, -1000, 0, 3600, 900);
     expect(ctx.setTransform).not.toHaveBeenCalled();
   });
 

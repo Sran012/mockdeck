@@ -1,6 +1,6 @@
 import type { Frame } from "@mockdeck/scene";
+import type { ImageAsset } from "./assets";
 import type { ChromeContext } from "./chrome";
-import type { Screenshot } from "./card";
 import type { Rect } from "./layout";
 
 export type IphoneColor = Extract<Frame, { type: "iphone" }>["color"];
@@ -53,7 +53,7 @@ export function drawIphoneScreen(
   screen: Rect,
   bodyRadius: number,
   color: IphoneColor,
-  image?: Screenshot,
+  image?: ImageAsset,
 ): void {
   if (screen.width <= 0 || screen.height <= 0) {
     return;

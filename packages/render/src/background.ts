@@ -1,4 +1,5 @@
 import type { Background } from "@mockdeck/scene";
+import type { ImageAsset } from "./assets";
 import type { Rect } from "./layout";
 
 type GradientBackground = Extract<Background, { kind: "gradient" }>;
@@ -12,6 +13,10 @@ export type BackgroundContext = {
   restore(): void;
   fillStyle: unknown;
   fillRect(x: number, y: number, width: number, height: number): void;
+  beginPath(): void;
+  rect(x: number, y: number, width: number, height: number): void;
+  clip(): void;
+  drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
   createLinearGradient(x0: number, y0: number, x1: number, y1: number): GradientLike;
   createRadialGradient(
     x0: number,
@@ -81,12 +86,43 @@ function conicGradient(
   return gradient;
 }
 
+function imageBackground(
+  ctx: BackgroundContext,
+  rect: Rect,
+  background: Extract<Background, { kind: "image" }>,
+  image: ImageAsset,
+): void {
+  const scale =
+    background.fit === "cover"
+      ? Math.max(rect.width / image.width, rect.height / image.height)
+      : Math.min(rect.width / image.width, rect.height / image.height);
+  const width = image.width * scale;
+  const height = image.height * scale;
+  const x = rect.x + (rect.width - width) / 2;
+  const y = rect.y + (rect.height - height) / 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
+  ctx.drawImage(image, x, y, width, height);
+  ctx.restore();
+}
+
 export function drawBackground(
   ctx: BackgroundContext,
   rect: Rect,
   background: Background,
+  image?: ImageAsset,
 ): void {
   if (background.kind === "transparent") {
+    return;
+  }
+
+  if (background.kind === "image") {
+    if (image != null) {
+      imageBackground(ctx, rect, background, image);
+    }
     return;
   }
 

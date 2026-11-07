@@ -1,17 +1,13 @@
 import { ARTBOARD_SIZES, type Scene } from "@mockdeck/scene";
+import type { ImageAsset } from "./assets";
 import { drawBackground, type BackgroundContext } from "./background";
-import {
-  cardRadius,
-  cardSurface,
-  drawCard,
-  type CardContext,
-  type Screenshot,
-} from "./card";
+import { cardRadius, cardSurface, drawCard, type CardContext } from "./card";
 import { layoutCard } from "./layout";
 import { drawCardShadow, type ShadowContext } from "./shadow";
 
 export type Assets = {
-  screenshot?: Screenshot;
+  screenshot?: ImageAsset;
+  background?: ImageAsset;
 };
 
 export type SceneContext = BackgroundContext &
@@ -50,7 +46,7 @@ export function renderScene(
       : null;
 
   ctx.scale(scale, scale);
-  drawBackground(ctx, { x: 0, y: 0, ...artboard }, scene.background);
+  drawBackground(ctx, { x: 0, y: 0, ...artboard }, scene.background, assets.background);
 
   if (cardLayout) {
     ctx.save();

@@ -11,6 +11,10 @@ function fakeContext() {
     restore: vi.fn(),
     fillStyle: undefined,
     fillRect: vi.fn(),
+    beginPath: vi.fn(),
+    rect: vi.fn(),
+    clip: vi.fn(),
+    drawImage: vi.fn(),
     createLinearGradient: vi.fn(
       (_x0: number, _y0: number, _x1: number, _y1: number) => gradient,
     ),
@@ -112,7 +116,7 @@ describe("drawBackground", () => {
     expect(ctx.createConicGradient).toHaveBeenCalledWith(0, 110, 70);
   });
 
-  it("skips backgrounds that need assets", () => {
+  it("skips backgrounds that need procedural assets", () => {
     const { ctx } = fakeContext();
 
     drawBackground(ctx, rect, {
@@ -125,5 +129,53 @@ describe("drawBackground", () => {
 
     expect(ctx.save).not.toHaveBeenCalled();
     expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+
+  it("covers the rect with a user image and clips the overflow", () => {
+    const { ctx } = fakeContext();
+    const image = { width: 400, height: 100 };
+    const background: Background = {
+      kind: "image",
+      source: { type: "user", blobId: "bg" },
+      fit: "cover",
+      blur: 0,
+    };
+
+    drawBackground(ctx, rect, background, image);
+
+    expect(ctx.rect).toHaveBeenCalledWith(10, 20, 200, 100);
+    expect(ctx.clip).toHaveBeenCalledOnce();
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, -90, 20, 400, 100);
+    expect(ctx.save).toHaveBeenCalledOnce();
+    expect(ctx.restore).toHaveBeenCalledOnce();
+  });
+
+  it("contains a user image inside the rect", () => {
+    const { ctx } = fakeContext();
+    const image = { width: 400, height: 100 };
+    const background: Background = {
+      kind: "image",
+      source: { type: "user", blobId: "bg" },
+      fit: "contain",
+      blur: 0,
+    };
+
+    drawBackground(ctx, rect, background, image);
+
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, 10, 45, 200, 50);
+  });
+
+  it("skips an image background when the asset is missing", () => {
+    const { ctx } = fakeContext();
+
+    drawBackground(ctx, rect, {
+      kind: "image",
+      source: { type: "user", blobId: "missing" },
+      fit: "cover",
+      blur: 0,
+    });
+
+    expect(ctx.save).not.toHaveBeenCalled();
+    expect(ctx.drawImage).not.toHaveBeenCalled();
   });
 });

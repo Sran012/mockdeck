@@ -1,5 +1,6 @@
 export * from "./background";
 export * from "./card";
+export * from "./assets";
 export * from "./chrome";
 export * from "./iphone";
 export * from "./layout";

@@ -1,4 +1,5 @@
 import type { Frame } from "@mockdeck/scene";
+import type { ImageAsset } from "./assets";
 import { browserBarColor, drawBrowserChrome, type ChromeContext } from "./chrome";
 import {
   drawIphoneScreen,
@@ -11,11 +12,6 @@ import { drawMacChrome, macBarColor } from "./mac";
 export type CardContext = ChromeContext & {
   clip(): void;
   drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
-};
-
-export type Screenshot = {
-  width: number;
-  height: number;
 };
 
 const CARD_SURFACE = "#ffffff";
@@ -44,7 +40,7 @@ export function drawCard(
   layout: CardLayout,
   radius: number,
   frame: Frame,
-  image?: Screenshot,
+  image?: ImageAsset,
 ): void {
   const surface = cardSurface(frame);
   const outerRadius = cardRadius(frame, layout.card.width, radius);
