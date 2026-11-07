@@ -7,11 +7,17 @@ import {
 
 export type EditorAsset = ImageBitmap;
 
+export type CoalesceMark = {
+  key: string;
+  at: number;
+};
+
 export type EditorState = {
   scene: Scene;
   history: {
     past: Scene[];
     future: Scene[];
+    lastCoalesce: CoalesceMark | null;
   };
   ui: {
     selectedPanel: string;
@@ -21,6 +27,7 @@ export type EditorState = {
 };
 
 export const HISTORY_LIMIT = 50;
+export const COALESCE_WINDOW_MS = 400;
 
 export function initialState(scene: Scene = defaultScene()): EditorState {
   return {
@@ -28,6 +35,7 @@ export function initialState(scene: Scene = defaultScene()): EditorState {
     history: {
       past: [],
       future: [],
+      lastCoalesce: null,
     },
     ui: {
       selectedPanel: "background",

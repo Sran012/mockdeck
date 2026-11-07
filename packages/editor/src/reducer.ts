@@ -1,13 +1,22 @@
 import { maxExportScale, type ExportScale, type Scene } from "@mockdeck/scene";
 import type { EditorAction } from "./actions";
-import { HISTORY_LIMIT, type EditorState } from "./state";
+import {
+  COALESCE_WINDOW_MS,
+  HISTORY_LIMIT,
+  type CoalesceMark,
+  type EditorState,
+} from "./state";
 
 function clampExportScale(aspect: Scene["aspect"], scale: ExportScale): ExportScale {
   const max = maxExportScale(aspect);
   return scale > max ? max : scale;
 }
 
-function pushScene(state: EditorState, scene: Scene): EditorState {
+function pushScene(
+  state: EditorState,
+  scene: Scene,
+  lastCoalesce: CoalesceMark | null,
+): EditorState {
   if (scene === state.scene) {
     return state;
   }
@@ -21,6 +30,7 @@ function pushScene(state: EditorState, scene: Scene): EditorState {
     history: {
       past,
       future: [],
+      lastCoalesce,
     },
     ui:
       exportScale === state.ui.exportScale
@@ -31,8 +41,40 @@ function pushScene(state: EditorState, scene: Scene): EditorState {
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
+    case "command/apply": {
+      const next = action.command.apply(state.scene);
+      if (next === state.scene) {
+        return state;
+      }
+
+      const key = action.command.coalesceKey;
+      const last = state.history.lastCoalesce;
+
+      if (
+        key !== undefined &&
+        last !== null &&
+        last.key === key &&
+        action.at - last.at <= COALESCE_WINDOW_MS
+      ) {
+        return {
+          ...state,
+          scene: next,
+          history: {
+            ...state.history,
+            lastCoalesce: { key, at: action.at },
+          },
+        };
+      }
+
+      return pushScene(
+        state,
+        next,
+        key !== undefined ? { key, at: action.at } : null,
+      );
+    }
+
     case "scene/set":
-      return pushScene(state, action.scene);
+      return pushScene(state, action.scene, null);
 
     case "scene/load": {
       const exportScale = clampExportScale(action.scene.aspect, state.ui.exportScale);
@@ -42,6 +84,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         history: {
           past: [],
           future: [],
+          lastCoalesce: null,
         },
         ui:
           exportScale === state.ui.exportScale
@@ -62,6 +105,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         history: {
           past: state.history.past.slice(0, -1),
           future: [state.scene, ...state.history.future],
+          lastCoalesce: null,
         },
       };
     }
@@ -78,6 +122,7 @@ export function editorReducer(state: EditorState, action: EditorAction): EditorS
         history: {
           past: [...state.history.past, state.scene].slice(-HISTORY_LIMIT),
           future: state.history.future.slice(1),
+          lastCoalesce: null,
         },
       };
     }

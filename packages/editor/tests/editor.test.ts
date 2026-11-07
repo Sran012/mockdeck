@@ -1,9 +1,12 @@
 import { defaultScene, maxExportScale } from "@mockdeck/scene";
 import { describe, expect, it } from "vitest";
 import {
+  applyCommand,
+  COALESCE_WINDOW_MS,
   editorReducer,
   HISTORY_LIMIT,
   initialState,
+  type Command,
   type EditorState,
 } from "../src";
 
@@ -22,7 +25,7 @@ describe("initialState", () => {
     const state = initialState();
 
     expect(state.scene).toEqual(defaultScene());
-    expect(state.history).toEqual({ past: [], future: [] });
+    expect(state.history).toEqual({ past: [], future: [], lastCoalesce: null });
     expect(state.ui).toEqual({
       selectedPanel: "background",
       exportScale: maxExportScale("16:9"),
@@ -123,7 +126,101 @@ describe("scene history", () => {
     const next = editorReducer(state, { type: "scene/load", scene: loaded });
 
     expect(next.scene).toBe(loaded);
-    expect(next.history).toEqual({ past: [], future: [] });
+    expect(next.history).toEqual({ past: [], future: [], lastCoalesce: null });
+  });
+});
+
+describe("commands", () => {
+  function paddingCommand(value: number): Command {
+    return {
+      id: "set-padding",
+      coalesceKey: "padding",
+      apply: (scene) => ({
+        ...scene,
+        transform: { ...scene.transform, padding: value },
+      }),
+    };
+  }
+
+  it("applies a command and records history", () => {
+    const state = initialState();
+    const next = applyCommand(state, paddingCommand(20), 1000);
+
+    expect(next.scene.transform.padding).toBe(20);
+    expect(next.history.past).toEqual([state.scene]);
+    expect(next.history.lastCoalesce).toEqual({ key: "padding", at: 1000 });
+  });
+
+  it("coalesces the same key inside the window", () => {
+    let state = applyCommand(initialState(), paddingCommand(10), 1000);
+
+    state = applyCommand(state, paddingCommand(20), 1200);
+
+    expect(state.history.past).toHaveLength(1);
+    expect(state.scene.transform.padding).toBe(20);
+    expect(state.history.lastCoalesce).toEqual({ key: "padding", at: 1200 });
+  });
+
+  it("does not coalesce after the window", () => {
+    let state = applyCommand(initialState(), paddingCommand(10), 1000);
+
+    state = applyCommand(state, paddingCommand(20), 1000 + COALESCE_WINDOW_MS + 1);
+
+    expect(state.history.past).toHaveLength(2);
+    expect(state.scene.transform.padding).toBe(20);
+  });
+
+  it("does not coalesce different keys", () => {
+    const radius: Command = {
+      id: "set-radius",
+      coalesceKey: "radius",
+      apply: (scene) => ({
+        ...scene,
+        transform: { ...scene.transform, radius: 24 },
+      }),
+    };
+    let state = applyCommand(initialState(), paddingCommand(10), 1000);
+
+    state = applyCommand(state, radius, 1100);
+
+    expect(state.history.past).toHaveLength(2);
+    expect(state.scene.transform.radius).toBe(24);
+  });
+
+  it("does not coalesce a command without a key", () => {
+    const command: Command = {
+      id: "set-padding",
+      apply: paddingCommand(10).apply,
+    };
+    let state = applyCommand(initialState(), command, 1000);
+
+    state = applyCommand(state, command, 1100);
+
+    expect(state.history.past).toHaveLength(2);
+    expect(state.history.lastCoalesce).toBeNull();
+  });
+
+  it("breaks coalescing after undo", () => {
+    let state = applyCommand(initialState(), paddingCommand(10), 1000);
+    state = editorReducer(state, { type: "scene/undo" });
+
+    expect(state.history.lastCoalesce).toBeNull();
+
+    state = applyCommand(state, paddingCommand(20), 1100);
+
+    expect(state.history.lastCoalesce).toEqual({ key: "padding", at: 1100 });
+    expect(state.history.past).toHaveLength(1);
+  });
+
+  it("breaks coalescing after a manual scene set", () => {
+    let state = applyCommand(initialState(), paddingCommand(10), 1000);
+    state = setPadding(state, 30);
+
+    expect(state.history.lastCoalesce).toBeNull();
+
+    state = applyCommand(state, paddingCommand(20), 1100);
+
+    expect(state.history.past).toHaveLength(3);
   });
 });
 
