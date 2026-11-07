@@ -2,10 +2,15 @@ import { defaultScene, maxExportScale } from "@mockdeck/scene";
 import { describe, expect, it } from "vitest";
 import {
   applyCommand,
+  backgroundAsset,
+  canRedo,
+  canUndo,
   COALESCE_WINDOW_MS,
   editorReducer,
   HISTORY_LIMIT,
   initialState,
+  renderAssets,
+  screenshotAsset,
   type Command,
   type EditorState,
 } from "../src";
@@ -250,6 +255,82 @@ describe("ui state", () => {
 
     expect(editorReducer(high, { type: "scene/set", scene }).ui.exportScale).toBe(2);
     expect(editorReducer(high, { type: "scene/load", scene }).ui.exportScale).toBe(2);
+  });
+});
+
+describe("selectors", () => {
+  it("reports undo and redo availability", () => {
+    const state = initialState();
+    expect(canUndo(state)).toBe(false);
+
+    const next = setPadding(state, 20);
+    expect(canUndo(next)).toBe(true);
+    expect(canRedo(next)).toBe(false);
+
+    const undone = editorReducer(next, { type: "scene/undo" });
+    expect(canUndo(undone)).toBe(false);
+    expect(canRedo(undone)).toBe(true);
+  });
+
+  it("resolves screenshot and background assets", () => {
+    const screenshot = { width: 100, height: 50 } as unknown as ImageBitmap;
+    const background = { width: 200, height: 100 } as unknown as ImageBitmap;
+    const scene = {
+      ...defaultScene(),
+      screenshot: { blobId: "shot", width: 100, height: 50 },
+      background: {
+        kind: "image" as const,
+        source: { type: "user" as const, blobId: "bg" },
+        fit: "cover" as const,
+        blur: 0,
+      },
+    };
+    let state = initialState(scene);
+    state = editorReducer(state, { type: "asset/set", id: "shot", asset: screenshot });
+    state = editorReducer(state, { type: "asset/set", id: "bg", asset: background });
+
+    expect(screenshotAsset(state)).toBe(screenshot);
+    expect(backgroundAsset(state)).toBe(background);
+    expect(renderAssets(state)).toEqual({ screenshot, background });
+  });
+
+  it("resolves a builtin background by id", () => {
+    const asset = { width: 10, height: 10 } as unknown as ImageBitmap;
+    const scene = {
+      ...defaultScene(),
+      background: {
+        kind: "image" as const,
+        source: { type: "builtin" as const, id: "mesh" },
+        fit: "contain" as const,
+        blur: 0,
+      },
+    };
+    let state = initialState(scene);
+    state = editorReducer(state, { type: "asset/set", id: "mesh", asset });
+
+    expect(backgroundAsset(state)).toBe(asset);
+  });
+
+  it("returns undefined when the asset is missing", () => {
+    const scene = {
+      ...defaultScene(),
+      screenshot: { blobId: "missing", width: 100, height: 50 },
+      background: {
+        kind: "image" as const,
+        source: { type: "user" as const, blobId: "missing-bg" },
+        fit: "cover" as const,
+        blur: 0,
+      },
+    };
+    const state = initialState(scene);
+
+    expect(screenshotAsset(state)).toBeUndefined();
+    expect(backgroundAsset(state)).toBeUndefined();
+    expect(renderAssets(state)).toEqual({ screenshot: undefined, background: undefined });
+  });
+
+  it("returns no background asset for a non-image background", () => {
+    expect(backgroundAsset(initialState())).toBeUndefined();
   });
 });
 
