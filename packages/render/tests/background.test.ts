@@ -1,6 +1,11 @@
 import type { Background } from "@mockdeck/scene";
 import { describe, expect, it, vi } from "vitest";
-import { drawBackground, type BackgroundContext } from "../src/background";
+import {
+  drawBackground,
+  type BackgroundContext,
+  type BlurCanvas,
+  type BlurContext,
+} from "../src/background";
 
 const rect = { x: 10, y: 20, width: 200, height: 100 };
 
@@ -15,6 +20,8 @@ function fakeContext() {
     rect: vi.fn(),
     clip: vi.fn(),
     drawImage: vi.fn(),
+    imageSmoothingEnabled: false,
+    imageSmoothingQuality: "low" as const,
     createLinearGradient: vi.fn(
       (_x0: number, _y0: number, _x1: number, _y1: number) => gradient,
     ),
@@ -26,6 +33,27 @@ function fakeContext() {
   } satisfies BackgroundContext;
 
   return { ctx, gradient };
+}
+
+function fakeScratchCanvas() {
+  const context: BlurContext = {
+    imageSmoothingEnabled: false,
+    imageSmoothingQuality: "low",
+    drawImage: vi.fn(),
+  };
+  const canvas = {
+    width: 0,
+    height: 0,
+    getContext: vi.fn((_contextId: "2d") => context),
+  } satisfies BlurCanvas;
+
+  const createCanvas = vi.fn((width: number, height: number) => {
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  });
+
+  return { canvas, context, createCanvas };
 }
 
 describe("drawBackground", () => {
@@ -163,6 +191,49 @@ describe("drawBackground", () => {
     drawBackground(ctx, rect, background, image);
 
     expect(ctx.drawImage).toHaveBeenCalledWith(image, 10, 45, 200, 50);
+  });
+
+  it("blurs an image by downscaling and upscaling a scratch canvas", () => {
+    const { ctx } = fakeContext();
+    const { canvas, context, createCanvas } = fakeScratchCanvas();
+    const image = { width: 400, height: 100 };
+    const background: Background = {
+      kind: "image",
+      source: { type: "user", blobId: "bg" },
+      fit: "cover",
+      blur: 10,
+    };
+
+    drawBackground(ctx, rect, background, image, { createCanvas });
+
+    expect(createCanvas).toHaveBeenCalledWith(20, 10);
+    expect(context.imageSmoothingEnabled).toBe(true);
+    expect(context.imageSmoothingQuality).toBe("high");
+    expect(context.drawImage).toHaveBeenCalledWith(image, -10, 0, 40, 10);
+    expect(ctx.imageSmoothingEnabled).toBe(true);
+    expect(ctx.imageSmoothingQuality).toBe("high");
+    expect(ctx.drawImage).toHaveBeenCalledWith(canvas, 10, 20, 200, 100);
+    expect(ctx.clip).not.toHaveBeenCalled();
+    expect(ctx.save).toHaveBeenCalledOnce();
+    expect(ctx.restore).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to a sharp image when a scratch canvas is unavailable", () => {
+    const { ctx } = fakeContext();
+    const image = { width: 400, height: 100 };
+    const background: Background = {
+      kind: "image",
+      source: { type: "user", blobId: "bg" },
+      fit: "cover",
+      blur: 10,
+    };
+
+    drawBackground(ctx, rect, background, image, {
+      createCanvas: () => null,
+    });
+
+    expect(ctx.clip).toHaveBeenCalledOnce();
+    expect(ctx.drawImage).toHaveBeenCalledWith(image, -90, 20, 400, 100);
   });
 
   it("skips an image background when the asset is missing", () => {

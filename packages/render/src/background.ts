@@ -17,6 +17,8 @@ export type BackgroundContext = {
   rect(x: number, y: number, width: number, height: number): void;
   clip(): void;
   drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
+  imageSmoothingEnabled?: boolean;
+  imageSmoothingQuality?: "low" | "medium" | "high";
   createLinearGradient(x0: number, y0: number, x1: number, y1: number): GradientLike;
   createRadialGradient(
     x0: number,
@@ -27,6 +29,29 @@ export type BackgroundContext = {
     r1: number,
   ): GradientLike;
   createConicGradient(startAngle: number, x: number, y: number): GradientLike;
+};
+
+export type BlurContext = {
+  imageSmoothingEnabled?: boolean;
+  imageSmoothingQuality?: "low" | "medium" | "high";
+  drawImage(image: unknown, dx: number, dy: number, dw: number, dh: number): void;
+};
+
+export type BlurCanvas = {
+  width: number;
+  height: number;
+  getContext(contextId: "2d"): BlurContext | null;
+};
+
+export type BackgroundOptions = {
+  createCanvas?: (width: number, height: number) => BlurCanvas | null;
+};
+
+type ImageFit = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 };
 
 function addStops(gradient: GradientLike, background: GradientBackground): void {
@@ -86,27 +111,118 @@ function conicGradient(
   return gradient;
 }
 
-function imageBackground(
-  ctx: BackgroundContext,
+function fitImage(
   rect: Rect,
   background: Extract<Background, { kind: "image" }>,
   image: ImageAsset,
-): void {
+): ImageFit {
   const scale =
     background.fit === "cover"
       ? Math.max(rect.width / image.width, rect.height / image.height)
       : Math.min(rect.width / image.width, rect.height / image.height);
   const width = image.width * scale;
   const height = image.height * scale;
-  const x = rect.x + (rect.width - width) / 2;
-  const y = rect.y + (rect.height - height) / 2;
 
+  return {
+    x: rect.x + (rect.width - width) / 2,
+    y: rect.y + (rect.height - height) / 2,
+    width,
+    height,
+  };
+}
+
+function drawSharpImage(
+  ctx: BackgroundContext,
+  rect: Rect,
+  fit: ImageFit,
+  image: ImageAsset,
+): void {
   ctx.save();
   ctx.beginPath();
   ctx.rect(rect.x, rect.y, rect.width, rect.height);
   ctx.clip();
-  ctx.drawImage(image, x, y, width, height);
+  ctx.drawImage(image, fit.x, fit.y, fit.width, fit.height);
   ctx.restore();
+}
+
+function defaultCreateCanvas(width: number, height: number): BlurCanvas | null {
+  if (typeof OffscreenCanvas !== "undefined") {
+    return new OffscreenCanvas(width, height);
+  }
+
+  if (typeof document !== "undefined") {
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+
+  return null;
+}
+
+function drawBlurredImage(
+  ctx: BackgroundContext,
+  rect: Rect,
+  background: Extract<Background, { kind: "image" }>,
+  fit: ImageFit,
+  image: ImageAsset,
+  createCanvas: (width: number, height: number) => BlurCanvas | null,
+): void {
+  // Downscale the image, then upscale it back. This approximates a blur
+  // without depending on ctx.filter, which is inconsistent across browsers.
+  const factor = Math.max(1.5, background.blur);
+  const width = Math.max(1, Math.round(rect.width / factor));
+  const height = Math.max(1, Math.round(rect.height / factor));
+  const canvas = createCanvas(width, height);
+  const scratch = canvas?.getContext("2d");
+
+  if (!canvas || !scratch) {
+    drawSharpImage(ctx, rect, fit, image);
+    return;
+  }
+
+  const scaleX = width / rect.width;
+  const scaleY = height / rect.height;
+
+  scratch.imageSmoothingEnabled = true;
+  scratch.imageSmoothingQuality = "high";
+  scratch.drawImage(
+    image,
+    (fit.x - rect.x) * scaleX,
+    (fit.y - rect.y) * scaleY,
+    fit.width * scaleX,
+    fit.height * scaleY,
+  );
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(canvas, rect.x, rect.y, rect.width, rect.height);
+  ctx.restore();
+}
+
+function imageBackground(
+  ctx: BackgroundContext,
+  rect: Rect,
+  background: Extract<Background, { kind: "image" }>,
+  image: ImageAsset,
+  options: BackgroundOptions,
+): void {
+  const fit = fitImage(rect, background, image);
+
+  if (background.blur <= 0) {
+    drawSharpImage(ctx, rect, fit, image);
+    return;
+  }
+
+  drawBlurredImage(
+    ctx,
+    rect,
+    background,
+    fit,
+    image,
+    options.createCanvas ?? defaultCreateCanvas,
+  );
 }
 
 export function drawBackground(
@@ -114,6 +230,7 @@ export function drawBackground(
   rect: Rect,
   background: Background,
   image?: ImageAsset,
+  options: BackgroundOptions = {},
 ): void {
   if (background.kind === "transparent") {
     return;
@@ -121,7 +238,7 @@ export function drawBackground(
 
   if (background.kind === "image") {
     if (image != null) {
-      imageBackground(ctx, rect, background, image);
+      imageBackground(ctx, rect, background, image, options);
     }
     return;
   }
