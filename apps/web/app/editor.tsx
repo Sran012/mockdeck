@@ -82,6 +82,7 @@ export function Editor() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const loadToken = useRef(0);
 
@@ -89,7 +90,7 @@ export function Editor() {
     dispatch({ type: "scene/set", scene });
   };
 
-  const loadFile = useCallback(async (file: File) => {
+  const loadFile = useCallback(async (file: File, target: "screenshot" | "background") => {
     const token = ++loadToken.current;
     setError(null);
     setBusy(true);
@@ -120,13 +121,27 @@ export function Editor() {
       }
 
       dispatch({ type: "asset/set", id: blobId, asset: bitmap });
-      const command: Command = {
-        id: "set-screenshot",
-        apply: (scene) => ({
-          ...scene,
-          screenshot: { blobId, width: bitmap.width, height: bitmap.height },
-        }),
-      };
+      const command: Command =
+        target === "screenshot"
+          ? {
+              id: "set-screenshot",
+              apply: (scene) => ({
+                ...scene,
+                screenshot: { blobId, width: bitmap.width, height: bitmap.height },
+              }),
+            }
+          : {
+              id: "set-background-image",
+              apply: (scene) => ({
+                ...scene,
+                background: {
+                  kind: "image",
+                  source: { type: "user", blobId },
+                  fit: "cover",
+                  blur: 0,
+                },
+              }),
+            };
       dispatch({ type: "command/apply", command, at: Date.now() });
     } catch (cause) {
       if (token === loadToken.current) {
@@ -147,7 +162,7 @@ export function Editor() {
       }
 
       event.preventDefault();
-      void loadFile(file);
+      void loadFile(file, "screenshot");
     }
 
     window.addEventListener("paste", handlePaste);
@@ -168,6 +183,7 @@ export function Editor() {
   }, [state.scene, state.assets]);
 
   const shot = state.scene.screenshot;
+  const background = state.scene.background;
   const artboard = ARTBOARD_SIZES[state.scene.aspect];
   const maxScale = maxExportScale(state.scene.aspect);
   const scaleOptions = ([1, 2, 4] as ExportScale[]).filter((scale) => scale <= maxScale);
@@ -176,13 +192,61 @@ export function Editor() {
     fileInputRef.current?.click();
   }
 
+  function openBackgroundPicker() {
+    backgroundInputRef.current?.click();
+  }
+
   function onFileInput(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
 
     if (file) {
-      void loadFile(file);
+      void loadFile(file, "screenshot");
     }
+  }
+
+  function onBackgroundFileInput(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (file) {
+      void loadFile(file, "background");
+    }
+  }
+
+  function onBackgroundBlur(blur: number) {
+    const command: Command = {
+      id: "set-background-blur",
+      coalesceKey: "background-blur",
+      apply: (scene) =>
+        scene.background.kind === "image"
+          ? { ...scene, background: { ...scene.background, blur } }
+          : scene,
+    };
+
+    dispatch({ type: "command/apply", command, at: Date.now() });
+  }
+
+  function onBackgroundFit(fit: "cover" | "contain") {
+    const command: Command = {
+      id: "set-background-fit",
+      coalesceKey: "background-fit",
+      apply: (scene) =>
+        scene.background.kind === "image"
+          ? { ...scene, background: { ...scene.background, fit } }
+          : scene,
+    };
+
+    dispatch({ type: "command/apply", command, at: Date.now() });
+  }
+
+  function onClearBackground() {
+    const command: Command = {
+      id: "clear-background",
+      apply: (scene) => ({ ...scene, background: { kind: "transparent" } }),
+    };
+
+    dispatch({ type: "command/apply", command, at: Date.now() });
   }
 
   function onUrlChange(url: string) {
@@ -249,7 +313,7 @@ export function Editor() {
 
     const file = imageFromTransfer(event.dataTransfer);
     if (file) {
-      void loadFile(file);
+      void loadFile(file, "screenshot");
     } else {
       setError("Drop a PNG, JPEG, or WebP image.");
     }
@@ -316,6 +380,42 @@ export function Editor() {
             </label>
           )}
 
+          <div className="field">
+            <span>Background</span>
+            <button className="ghost" type="button" onClick={openBackgroundPicker}>
+              {background.kind === "image" ? "Replace" : "Image"}
+            </button>
+          </div>
+
+          {background.kind === "image" && (
+            <>
+              <label className="field">
+                Fit
+                <select
+                  value={background.fit}
+                  onChange={(event) =>
+                    onBackgroundFit(event.target.value as "cover" | "contain")
+                  }
+                >
+                  <option value="cover">Cover</option>
+                  <option value="contain">Contain</option>
+                </select>
+              </label>
+
+              <label className="field">
+                Blur
+                <input
+                  type="range"
+                  min={0}
+                  max={80}
+                  step={1}
+                  value={background.blur}
+                  onChange={(event) => onBackgroundBlur(Number(event.target.value))}
+                />
+              </label>
+            </>
+          )}
+
           <label className="field">
             Export
             <select
@@ -375,6 +475,11 @@ export function Editor() {
           <button className="ghost" type="button" onClick={openPicker}>
             {shot ? "Replace image" : "Choose image"}
           </button>
+          {background.kind === "image" && (
+            <button className="ghost" type="button" onClick={onClearBackground}>
+              Clear background
+            </button>
+          )}
           {busy && <span>Reading image...</span>}
         </div>
 
@@ -406,6 +511,14 @@ export function Editor() {
         accept="image/png,image/jpeg,image/webp"
         hidden
         onChange={onFileInput}
+      />
+
+      <input
+        ref={backgroundInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        hidden
+        onChange={onBackgroundFileInput}
       />
     </div>
   );

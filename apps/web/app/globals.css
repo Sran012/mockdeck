@@ -104,6 +104,19 @@ button {
   width: 180px;
 }
 
+.field .ghost {
+  height: 34px;
+}
+
+.field input[type="range"] {
+  width: 120px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
 .primary {
   height: 34px;
   padding: 0 14px;
